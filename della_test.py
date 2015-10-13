@@ -20,6 +20,8 @@ st_outfile = "/mnt/Work/MyDocs/Dropbox/dev/elem0.html"
 ##st_local_Della = "/media/sf_Dropbox/dev/DELLA_example.html"
 ##st_outfile = "/var/www/html/smartlog/elem0.html"
 
+req_id = {}
+
 def grab_della_snow(della_url):
     """ extracts data from URL (1st page about Ukraine of Della) """
     req = request.Request(della_url)
@@ -74,7 +76,7 @@ def prepare_file(outfile):
         print('<meta http-equiv="Content-Language" content="ru, uk, ru-UA, uk-UA, ua">', file = f)
         print('</head>', file = f)
         print('<body>', file = f)
-        print('<table>', file = f)
+        print('<tbody>', file = f)
     else: # append mode
         f = open(outfile,
                  mode = "a", encoding = "UTF-8")
@@ -82,7 +84,7 @@ def prepare_file(outfile):
 
 def close_file(f):
     """ adds closing tags to html file and closes it """
-    print('</table>', file = f)
+    print('</tbody>', file = f)
     print('</body>', file = f)
     print('</html>', file = f)
     f.close()
@@ -95,7 +97,6 @@ def add_data_to_page(page_file, b_data):
         print ('</tr>', file = page_file)
 
 
-
 f = prepare_file(st_outfile)
 
 starttime = time.time()
@@ -103,6 +104,10 @@ while True:
     b = grab_della_snow(della_url)
     add_data_to_page(f, b)
     time.sleep(req_interval - ((time.time() - starttime) % req_interval))
+
+
+close_file(f)
+
 
 ##import signal
 ##def tick_print(delay=0, interval=0):
