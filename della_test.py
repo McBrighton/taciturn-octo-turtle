@@ -96,6 +96,8 @@ def add_data_to_page(page_file, b_data):
         print(html.tostring(el, pretty_print = True, encoding = 'unicode'), file = page_file)
         print ('</tr>', file = page_file)
 
+# limit cycle for testing
+countdown = 12
 
 f = prepare_file(st_outfile)
 
@@ -105,6 +107,9 @@ while True:
     add_data_to_page(f, b)
     time.sleep(req_interval - ((time.time() - starttime) % req_interval))
 
+    if countdown == 0:
+        break
+    countdown -= 1
 
 close_file(f)
 
