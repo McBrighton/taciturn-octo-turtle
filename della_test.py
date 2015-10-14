@@ -20,7 +20,7 @@ st_outfile = "/mnt/Work/MyDocs/Dropbox/dev/elem0.html"
 ##st_local_Della = "/media/sf_Dropbox/dev/DELLA_example.html"
 ##st_outfile = "/var/www/html/smartlog/elem0.html"
 
-req_id = {}
+req_dict = {}
 
 def grab_della_snow(della_url):
     """ extracts data from URL (1st page about Ukraine of Della) """
@@ -53,10 +53,11 @@ def grab_della_snow(della_url):
             if el.xpath('.//img[@alt="*"]'):
                     b.extend(el.find_class("request_level_ms"))
                     # for testing purposes
-                    print ("selected %d row" % (n+1))
+                    # print ("selected %d row" % (n+1))
 
     # return list of selected <td> html elements
     return b
+
 
 def prepare_file(outfile):
     """ opens html file for writing.
@@ -76,15 +77,16 @@ def prepare_file(outfile):
         print('<meta http-equiv="Content-Language" content="ru, uk, ru-UA, uk-UA, ua">', file = f)
         print('</head>', file = f)
         print('<body>', file = f)
-        print('<tbody>', file = f)
+        print('<table class="" width="100%">', file = f)
     else: # append mode
         f = open(outfile,
                  mode = "a", encoding = "UTF-8")
     return f
 
+
 def close_file(f):
     """ adds closing tags to html file and closes it """
-    print('</tbody>', file = f)
+    print('</table>', file = f)
     print('</body>', file = f)
     print('</html>', file = f)
     f.close()
@@ -95,21 +97,43 @@ def add_data_to_page(page_file, b_data):
         print ('<tr>', file = page_file)
         print(html.tostring(el, pretty_print = True, encoding = 'unicode'), file = page_file)
         print ('</tr>', file = page_file)
+        page_file.flush() # to make available for browser
 
-# limit cycle for testing
-countdown = 12
+
+def filter_data(b_data):
+    """ filter data from duplicates """
+    global req_dict
+    filtered_b = []
+    for el in b_data:
+        req_id = int(el.get("request_id"))
+        dateup = int(el.xpath("parent::*")[0].get("dateup"))
+        if req_id not in req_dict:
+            # new request
+            req_dict[req_id] = dateup
+            filtered_b.extend(el)
+        elif dateup != req_dict[req_id]:
+            # updated request
+            req_dict[req_id] = dateup
+            filtered_b.extend(el)
+
+    return filtered_b
+
+
+countdown = 3 # limit cycle for testing
 
 f = prepare_file(st_outfile)
 
 starttime = time.time()
 while True:
+    if countdown == 0:
+        break
     b = grab_della_snow(della_url)
+    b = filter_data(b)
     add_data_to_page(f, b)
     time.sleep(req_interval - ((time.time() - starttime) % req_interval))
 
-    if countdown == 0:
-        break
     countdown -= 1
+
 
 close_file(f)
 
@@ -120,9 +144,3 @@ close_file(f)
 ##signal.setitimer(signal.ITIMER_REAL, 1, 5)
 ##signal.signal(signal.SIGALRM, tick_print)
 ##signal.alarm(0)
-
-# Перечитывать страницу, дописывать данные
-# (файл нужно открывать в другом режиме)
-# сверять айди, чтобы не дописывать те же заявки
-# приблизительно так:
-# b[0].get('request_id')
