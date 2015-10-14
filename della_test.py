@@ -2,6 +2,8 @@ from urllib import request
 from lxml import html
 import io
 import time
+import os
+from os.path import exists
 
 # constants
 
@@ -11,14 +13,17 @@ import time
 # common:
 della_url = "http://della.ua/search/a204bd204eflolh0ilk0m1.html"
 req_interval = 5.0  # 5 seconds
+st_outfile = "elem0.html"
+bk_outfile1 = "elem1.html"
+bk_outfile2 = "elem2.html"
 
 # dev variants
 #st_local_Della = "/mnt/Work/MyDocs/Dropbox/dev/DELLA_example.html"
-st_outfile = "/mnt/Work/MyDocs/Dropbox/dev/elem0.html"
+site_path = "/mnt/Work/MyDocs/Dropbox/dev"
 
 # server variants
 ##st_local_Della = "/media/sf_Dropbox/dev/DELLA_example.html"
-##st_outfile = "/var/www/html/smartlog/elem0.html"
+##site_path = "/var/www/html/smartlog"
 
 req_dict = {}
 
@@ -64,23 +69,18 @@ def prepare_file(outfile):
         Either creates/truncates file,
         or opens it for appending to end
     """
-    q = input("Use blank page? (Y/n)")
-    if q in ("Y", "y"):
-        # open file in mode 'w' - write with truncating at first
-        f = open(outfile,
-                 mode = "w", encoding = "UTF-8")
-        # make some quick header (taken from Della page)
-        print('</html>', file = f)
-        print('<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">', file = f)
-        print('<meta http-equiv="X-UA-Compatible" content="IE=edge">', file = f)
-        print('<title>Snezhynka selections</title>', file = f)
-        print('<meta http-equiv="Content-Language" content="ru, uk, ru-UA, uk-UA, ua">', file = f)
-        print('</head>', file = f)
-        print('<body>', file = f)
-        print('<table class="" width="100%">', file = f)
-    else: # append mode
-        f = open(outfile,
-                 mode = "a", encoding = "UTF-8")
+    # open file in mode 'w' - write with truncating at first
+    f = open(outfile,
+             mode = "w", encoding = "UTF-8")
+    # make some quick header (taken from Della page)
+    print('</html>', file = f)
+    print('<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">', file = f)
+    print('<meta http-equiv="X-UA-Compatible" content="IE=edge">', file = f)
+    print('<title>Snezhynka selections</title>', file = f)
+    print('<meta http-equiv="Content-Language" content="ru, uk, ru-UA, uk-UA, ua">', file = f)
+    print('</head>', file = f)
+    print('<body>', file = f)
+    print('<table class="" width="100%">', file = f)
     return f
 
 
@@ -119,24 +119,39 @@ def filter_data(b_data):
     return filtered_b
 
 
-countdown = 3 # limit cycle for testing
+# countdown = 3 # limit cycle for testing
+
+cur_dir = os.getcwd()
+os.chdir(site_path)
 
 f = prepare_file(st_outfile)
-
+rotation_ready = True
 starttime = time.time()
+
 while True:
-    if countdown == 0:
-        break
+    # if countdown == 0:
+    #    break
     b = grab_della_snow(della_url)
     b = filter_data(b)
     add_data_to_page(f, b)
+    if time.localtime().tm_min in [0, 30]:
+        if rotation_ready:
+            close_file(f)
+            if exists(bk_outfile1):
+                os.replace(bk_outfile1, bk_outfile2)
+            os.replace(st_outfile, bk_outfile1)
+            rotation_ready = False
+            f = prepare_file(st_outfile)
+            req_dict = {}
+    else:
+        rotation_ready = True
     time.sleep(req_interval - ((time.time() - starttime) % req_interval))
 
-    countdown -= 1
+    # countdown -= 1
 
 
 close_file(f)
-
+os.chdir(cur_dir)
 
 ##import signal
 ##def tick_print(delay=0, interval=0):
