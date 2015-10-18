@@ -1,5 +1,6 @@
 from urllib import request
 from lxml import html
+from lxml.html import builder as E
 import io
 import time
 import os
@@ -7,15 +8,27 @@ from os.path import exists
 
 # constants
 
-# предложения грузов: http://della.ua/search/a204bd204eflolh0ilk0m1.html
-# предложения транспорта: http://della.ua/search/a204bd204eflolh0ilk1m1.html
-
 # common:
-della_url = "http://della.ua/search/a204bd204eflolh0ilk0m1.html"
-req_interval = 5.0  # 5 seconds
-st_outfile = "elem0.html"
-bk_outfile1 = "elem1.html"
-bk_outfile2 = "elem2.html"
+snow_sectors = {"W": {"url_della": "http://della.com.ua/search/a204l204l204l204l204l204l204b4l5l6l3l7l8l2d204eflo5l23h0ilk0m1.html",
+                      "page_code": "west",
+                      "req_dict" : {}
+                      },
+                "CS":{"url_della": "http://della.com.ua/search/a204l204l204l204l204l204l204b15l14l12l11l20l9l10d204eflo5l23h0ilk0m1.html",
+                      "page_code": "center-south",
+                      "req_dict" : {}
+                      },
+                "NE":{"url_della": "http://della.com.ua/search/a204l204l204l204l204l204l204b17l24l22l19l18l16l13d204eflo5l23h0ilk0m1.html",
+                      "page_code": "north-east",
+                      "req_dict" : {}
+                      },
+                "EW":{"url_della": "http://della.com.ua/search/a204l204l204b1l25l23d204eflo5l23h0ilk0m1.html",
+                      "page_code": "east-west",
+                      "req_dict" : {}
+                      }
+               }
+
+req_interval = 10.0 / len(snow_sectors)  # 10 sec on 4 urls
+template_outfile = "snizhynky{}_{}.html"
 
 # dev variants
 #st_local_Della = "/mnt/Work/MyDocs/Dropbox/dev/DELLA_example.html"
@@ -100,9 +113,9 @@ def add_data_to_page(page_file, b_data):
         page_file.flush() # to make available for browser
 
 
-def filter_data(b_data):
+def filter_data(b_data, req_dict):
     """ filter data from duplicates """
-    global req_dict
+    # global req_dict
     filtered_b = []
     for el in b_data:
         req_id = int(el.get("request_id"))
@@ -116,41 +129,72 @@ def filter_data(b_data):
             req_dict[req_id] = dateup
             filtered_b.extend(el)
 
-    return filtered_b
-
+    return filtered_b, req_dict
 
 # countdown = 3 # limit cycle for testing
 
 cur_dir = os.getcwd()
 os.chdir(site_path)
 
-f = prepare_file(st_outfile)
-rotation_ready = True
+# prepare pages (files), initiate rotations
+
+# make "index" file
+index_f = open("index.html", mode = "w", encoding = "UTF-8")
+index_elem = E.UL()
+
+for sector in snow_sectors:
+    s = snow_sectors[sector]
+    s["file"] = prepare_file(template_outfile.format("", s["page_code"]))
+    s["rotation_ready"] = True
+    index_elem.append(E.LI(s["page_code"],
+                       E.UL(
+                           E.LI(E.A("поточна сторінка", href = template_outfile.format("", s["page_code"]))),
+                           E.LI(E.A("архівна сторінка", href = template_outfile.format("_archive", s["page_code"]))),
+                           E.LI(E.A("пошук на Деллі", href = s["url_della"]))
+                           )
+                       )
+                       )
+index_b = html.tostring(
+             E.HTML(E.HEAD(E.TITLE("Зміст")),
+                    E.BODY(E.H4("Перелік сторінок пошуку"),
+                           index_elem
+                          )
+                   ),
+             pretty_print = True
+             )
+index_text = index_b.decode(encoding = "UTF-8")
+print(index_text, file = index_f)
+index_f.close()
+                            
+# rotation_ready = True
 starttime = time.time()
 
 while True:
     # if countdown == 0:
     #    break
-    b = grab_della_snow(della_url)
-    b = filter_data(b)
-    add_data_to_page(f, b)
-    if time.localtime().tm_min in [0, 30]:
-        if rotation_ready:
-            close_file(f)
-            if exists(bk_outfile1):
-                os.replace(bk_outfile1, bk_outfile2)
-            os.replace(st_outfile, bk_outfile1)
-            rotation_ready = False
-            f = prepare_file(st_outfile)
-            req_dict = {}
-    else:
-        rotation_ready = True
-    time.sleep(req_interval - ((time.time() - starttime) % req_interval))
+    for sector in snow_sectors:
+        s = snow_sectors[sector]
+        b = grab_della_snow(s["url_della"])
+        b, s["req_dict"] = filter_data(b, s["req_dict"])
+        add_data_to_page(s["file"], b)
+        if time.localtime().tm_min in [0, 30]:
+            if s["rotation_ready"]:
+                close_file(s["file"])
+                os.replace(template_outfile.format("", s["page_code"]), \
+                           template_outfile.format("_archive", s["page_code"]))
+                s["rotation_ready"] = False
+                s["file"] = prepare_file(template_outfile.format("", s["page_code"]))
+                s["req_dict"] = {}
+        else:
+            s["rotation_ready"] = True
+        time.sleep(req_interval - ((time.time() - starttime) % req_interval))
 
     # countdown -= 1
 
 
-close_file(f)
+for sector in snow_sectors:
+    closefile(snow_sectors[sector]["file"])
+
 os.chdir(cur_dir)
 
 ##import signal
